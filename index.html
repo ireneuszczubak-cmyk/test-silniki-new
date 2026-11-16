@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test: Pomiary silników 1f i 3f</title>
+<style>
+  :root { --acc:#1f5fbf; --bg:#f4f6f9; --card:#fff; --txt:#1c1f24; --mut:#5b6470; --ok:#1e7a3c; --err:#b3261e; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--txt); font-size:17px; line-height:1.45; }
+  header { background:var(--acc); color:#fff; padding:18px 16px; }
+  header h1 { margin:0; font-size:1.25rem; }
+  header p { margin:4px 0 0; opacity:.9; font-size:.9rem; }
+  main { max-width:720px; margin:0 auto; padding:12px; }
+  .card { background:var(--card); border-radius:12px; padding:14px 16px; margin:12px 0; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  h2 { font-size:1.05rem; margin:22px 4px 4px; color:var(--acc); }
+  label.field { display:block; font-weight:600; margin:8px 0 4px; }
+  input[type=text] { width:100%; padding:12px; font-size:1rem; border:1px solid #c8ced6; border-radius:8px; }
+  .q { font-weight:600; margin-bottom:8px; }
+  .q .nr { color:var(--acc); margin-right:4px; }
+  .opt { display:flex; gap:10px; align-items:flex-start; padding:10px; margin:6px 0; border:1px solid #d9dee5; border-radius:8px; cursor:pointer; }
+  .opt input { margin-top:3px; transform:scale(1.25); }
+  .opt:has(input:checked) { border-color:var(--acc); background:#eaf1fc; }
+  .card.missing { outline:2px solid var(--err); }
+  table { border-collapse:collapse; width:100%; font-size:.95rem; margin:6px 0; }
+  td, th { border:1px solid #d9dee5; padding:6px 8px; text-align:left; }
+  th { background:#eef2f7; }
+  button { width:100%; padding:16px; font-size:1.1rem; font-weight:700; border:0; border-radius:10px; background:var(--acc); color:#fff; cursor:pointer; margin:16px 0 40px; }
+  button:disabled { background:#8aa3c7; }
+  #msg { text-align:center; font-weight:600; }
+  #msg.err { color:var(--err); }
+  .done { text-align:center; padding:40px 16px; }
+  .done h2 { color:var(--ok); font-size:1.4rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Test: Pomiary silników jedno- i trójfazowych</h1>
+  <p>Pomiary uzwojeń i rezystancji izolacji · 25 pytań · 1 pkt za każde</p>
+</header>
+<main id="app">
+  <div class="card">
+    <label class="field" for="imie">Imię i nazwisko</label>
+    <input type="text" id="imie" autocomplete="name">
+    <label class="field" for="klasa">Klasa</label>
+    <input type="text" id="klasa">
+  </div>
+  <div id="pytania"></div>
+  <div id="msg"></div>
+  <button id="wyslij">Wyślij odpowiedzi</button>
+</main>
+
+<script>
+// Adres skryptu Google Apps Script (instrukcja.md, krok 3). Wklej go między cudzysłowy:
+const ADRES_SKRYPTU = "https://script.google.com/macros/s/AKfycbx0XhhsHWPyAzv-OUatPSOEtSuL7SiyaO7ZHWQhDeIKKW97HsnJ4iuf8hlHREWkjffg/exec";
+
+// Pytania bez kluczy odpowiedzi - punkty liczy skrypt na koncie nauczyciela.
+const CZESCI = [
+  { tytul: "Część A. Pytania jednokrotnego wyboru", pytania: [
+    ["A1","Rezystancję izolacji uzwojeń silnika mierzy się:",["omomierzem w multimetrze","mostkiem Thomsona","miernikiem rezystancji izolacji (induktorem, megaomomierzem)","miernikiem cęgowym"]],
+    ["A2","Rezystancję izolacji silnika 230 V lub 3 × 400 V mierzy się napięciem probierczym:",["250 V DC","500 V DC","1000 V AC","9 V z baterii multimetru"]],
+    ["A3","Wynik pomiaru rezystancji izolacji podaje się zwykle w:",["omach (Ω)","miliomach (mΩ)","megaomach (MΩ)","kilowoltach (kV)"]],
+    ["A4","Rezystancję izolacji silnika trójfazowego mierzy się:",["tylko między początkiem i końcem uzwojenia (U1–U2)","między każdym uzwojeniem a obudową oraz między uzwojeniami","między przewodem L1 a N w gniazdku","tylko między zaciskiem PE a obudową"]],
+    ["A5","Przed pomiarem rezystancji izolacji między uzwojeniami należy:",["załączyć silnik na chwilę","zewrzeć wszystkie zaciski z PE","podłączyć kondensator","odłączyć zasilanie i zdjąć mostki z tabliczki zaciskowej"]],
+    ["A6","Rezystancję (ciągłość) uzwojeń silnika mierzy się:",["induktorem","omomierzem lub miernikiem małych rezystancji","miernikiem cęgowym","woltomierzem prądu przemiennego"]],
+    ["A7","Rezystancję uzwojeń silnika trójfazowego mierzy się po zdjęciu mostków między zaciskami:",["U1–V1, V1–W1, W1–U1","U1–PE, V1–PE, W1–PE","U2–V2, V2–W2, W2–U2","U1–U2, V1–V2, W1–W2"]],
+    ["A8","W sprawnym silniku trójfazowym rezystancje trzech uzwojeń są:",["praktycznie jednakowe","różne o kilkadziesiąt procent","równe zeru","nieskończenie duże"]],
+    ["A9","Omomierz pokazuje „OL” (nieskończoność) przy pomiarze jednego uzwojenia. Oznacza to:",["zwarcie zwojowe","przerwę w uzwojeniu","prawidłowy stan uzwojenia","dobrą izolację uzwojenia"]],
+    ["A10","Rezystancja izolacji między uzwojeniem a obudową wynosi prawie 0 MΩ. Oznacza to:",["prawidłowy stan silnika","przerwę w uzwojeniu","przebicie izolacji (zwarcie z obudową)","złe połączenie mostków"]],
+    ["A11","Silnik jednofazowy ma trzy wyprowadzenia. Największą rezystancję omomierz pokaże między:",["zaciskiem wspólnym a uzwojeniem głównym","zaciskiem wspólnym a uzwojeniem pomocniczym","zaciskiem wspólnym a obudową","końcami uzwojenia głównego i pomocniczego (oba uzwojenia szeregowo)"]],
+    ["A12","W obwodach o napięciu do 500 V (np. 230 V, 3 × 400 V) wymagana rezystancja izolacji wynosi co najmniej:",["1 MΩ","1 kΩ","1 Ω","100 MΩ"]],
+    ["A13","Zawilgocenie uzwojeń silnika powoduje:",["wzrost rezystancji izolacji","wzrost rezystancji uzwojeń","spadek rezystancji izolacji","brak zmian w wynikach pomiarów"]]
+  ]},
+  { tytul: "Część B. Prawda czy fałsz", pytania: [
+    ["B1","Pomiar rezystancji izolacji wykonuje się na silniku odłączonym od zasilania.",["Prawda","Fałsz"]],
+    ["B2","Induktorem (megaomomierzem) można dokładnie zmierzyć rezystancję uzwojenia.",["Prawda","Fałsz"]],
+    ["B3","Pomiar rezystancji izolacji można wykonać przy podłączonym zasilaniu.",["Prawda","Fałsz"]],
+    ["B4","Rezystancja uzwojenia sprawnego silnika wynosi zwykle kilka megaomów.",["Prawda","Fałsz"]],
+    ["B5","Rezystancja izolacji powinna być jak najmniejsza.",["Prawda","Fałsz"]]
+  ]},
+  { tytul: "Część C. Procedura pomiaru i ocena wyników", pytania: [
+    ["C1","Pierwsza czynność przed pomiarem rezystancji izolacji silnika to:",["ustawienie napięcia probierczego 500 V DC","pomiar izolacji między uzwojeniem U a obudową","wyłączenie zasilania, zabezpieczenie przed ponownym załączeniem i sprawdzenie braku napięcia","rozładowanie uzwojeń"]],
+    ["C2","Wskaż prawidłową kolejność czynności przy pomiarze rezystancji izolacji:",["pomiar → odłączenie zasilania → zdjęcie mostków → zapis wyników","odłączenie zasilania i sprawdzenie braku napięcia → zdjęcie mostków → pomiar → rozładowanie uzwojeń → zapis wyników","zdjęcie mostków → pomiar → odłączenie zasilania → rozładowanie uzwojeń","odłączenie zasilania → pomiar → rozładowanie uzwojeń → zdjęcie mostków"]],
+    ["C3","Bezpośrednio po zakończeniu pomiaru rezystancji izolacji należy:",["od razu odłączyć przewody pomiarowe gołą ręką","rozładować uzwojenia","załączyć silnik do sieci","powtórzyć pomiar napięciem 1000 V"]],
+    ["C4","Wskaż poprawnie dobrane mierniki:",["izolacja – multimetr, rezystancja uzwojenia – induktor","izolacja – miernik cęgowy, rezystancja uzwojenia – woltomierz","izolacja – miernik rezystancji izolacji (induktor), rezystancja uzwojenia – omomierz","izolacja i rezystancja uzwojenia – miernik cęgowy"]],
+    ["C5","Na podstawie tabeli wyników: które uzwojenie ma przerwę?",["U","V","W","żadne"], true],
+    ["C6","Na podstawie tabeli wyników: które uzwojenie ma za niską rezystancję izolacji względem obudowy?",["U","V","W","żadne"], true],
+    ["C7","Na podstawie tabeli wyników: oceń stan silnika.",["silnik jest sprawny","silnik jest niesprawny tylko z powodu izolacji uzwojenia V","silnik jest niesprawny: przerwa w uzwojeniu W i za niska izolacja uzwojenia V – wymaga naprawy","silnik będzie sprawny po połączeniu w gwiazdę"], true]
+  ]}
+];
+
+const TABELA = `<p><b>Wyniki pomiarów silnika 3 × 400 V (do pytań C5–C7):</b></p>
+<table><tr><th>Pomiar</th><th>Wynik</th></tr>
+<tr><td>Rezystancja uzwojenia U1–U2</td><td>4,2 Ω</td></tr>
+<tr><td>Rezystancja uzwojenia V1–V2</td><td>4,3 Ω</td></tr>
+<tr><td>Rezystancja uzwojenia W1–W2</td><td>OL (nieskończoność)</td></tr>
+<tr><td>Izolacja U–PE</td><td>250 MΩ</td></tr>
+<tr><td>Izolacja V–PE</td><td>0,2 MΩ</td></tr>
+<tr><td>Izolacja W–PE</td><td>300 MΩ</td></tr>
+<tr><td>Izolacja między uzwojeniami</td><td>&gt; 500 MΩ</td></tr></table>`;
+
+const LITERY = ["a","b","c","d"];
+const box = document.getElementById("pytania");
+let tabelaWstawiona = false;
+CZESCI.forEach(cz => {
+  const h = document.createElement("h2"); h.textContent = cz.tytul; box.appendChild(h);
+  cz.pytania.forEach(([id, tresc, opcje, zTabela]) => {
+    if (zTabela && !tabelaWstawiona) {
+      const t = document.createElement("div"); t.className = "card"; t.innerHTML = TABELA; box.appendChild(t);
+      tabelaWstawiona = true;
+    }
+    const c = document.createElement("div"); c.className = "card"; c.id = "k_" + id;
+    const q = document.createElement("div"); q.className = "q";
+    q.innerHTML = `<span class="nr">${id}.</span>`; q.append(tresc); c.appendChild(q);
+    opcje.forEach((o, i) => {
+      const wart = id.startsWith("B") ? (i === 0 ? "P" : "F") : LITERY[i];
+      const l = document.createElement("label"); l.className = "opt";
+      const r = document.createElement("input"); r.type = "radio"; r.name = id; r.value = wart;
+      r.addEventListener("change", () => c.classList.remove("missing"));
+      const s = document.createElement("span");
+      s.textContent = id.startsWith("B") ? o : `${LITERY[i]}) ${o}`;
+      l.append(r, s); c.appendChild(l);
+    });
+    box.appendChild(c);
+  });
+});
+
+const msg = document.getElementById("msg");
+const btn = document.getElementById("wyslij");
+btn.addEventListener("click", async () => {
+  msg.className = ""; msg.textContent = "";
+  const imie = document.getElementById("imie").value.trim();
+  const klasa = document.getElementById("klasa").value.trim();
+  if (!imie || !klasa) { msg.className = "err"; msg.textContent = "Wpisz imię i nazwisko oraz klasę."; window.scrollTo({top:0,behavior:"smooth"}); return; }
+  const odp = {}; let brak = null;
+  CZESCI.forEach(cz => cz.pytania.forEach(([id]) => {
+    const z = document.querySelector(`input[name="${id}"]:checked`);
+    if (z) odp[id] = z.value; else { document.getElementById("k_" + id).classList.add("missing"); if (!brak) brak = id; }
+  }));
+  if (brak) { msg.className = "err"; msg.textContent = "Odpowiedz na wszystkie pytania (zaznaczone na czerwono)."; document.getElementById("k_" + brak).scrollIntoView({behavior:"smooth",block:"center"}); return; }
+  if (!confirm("Wysłać odpowiedzi? Później nie można ich zmienić.")) return;
+  btn.disabled = true; btn.textContent = "Wysyłanie…";
+  try {
+    await fetch(ADRES_SKRYPTU, { method:"POST", mode:"no-cors", headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({ imie, klasa, odp, czas: new Date().toISOString() }) });
+    try { localStorage.setItem("test_silniki_wyslany", "1"); } catch (e) {}
+    document.getElementById("app").innerHTML = `<div class="done"><h2>Odpowiedzi wysłane ✓</h2><p>${imie.replace(/</g,"&lt;")}, ${klasa.replace(/</g,"&lt;")}</p><p>Wynik poda nauczyciel.</p></div>`;
+    window.scrollTo(0,0);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = "Wyślij odpowiedzi";
+    msg.className = "err"; msg.textContent = "Nie udało się wysłać. Sprawdź internet i spróbuj ponownie.";
+  }
+});
+
+try { if (localStorage.getItem("test_silniki_wyslany") === "1") {
+  msg.textContent = "Uwaga: z tego telefonu już wysłano odpowiedzi.";
+} } catch (e) {}
+</script>
+</body>
+</html>
